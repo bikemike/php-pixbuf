@@ -4,10 +4,29 @@ dl_local("../src/php-pixbuf.so");
 $file = "stuff.png";
 $pixbuf = pixbuf_new_from_file_at_size($file,100,100);
 $pixbuf_r = pixbuf_rotate_simple($pixbuf,90);
+$pixbuf_s = pixbuf_scale_simple($pixbuf,200,200);
+
+for ( $i = 0 ; $i < 10; $i ++)
+{
+	echo "scale attempt: $i\n";
+	$pixbuf_s = pixbuf_scale_simple($pixbuf,500,500);
+}
+echo pixbuf_get_width($pixbuf) . "\n";
+echo pixbuf_get_height($pixbuf) . "\n";
+echo pixbuf_get_width($pixbuf_r) . "\n";
+echo pixbuf_get_height($pixbuf_r) . "\n";
+echo pixbuf_get_width($pixbuf_s) . "\n";
+echo pixbuf_get_height($pixbuf_s) . "\n";
+
+pixbuf_save($pixbuf_s,"test_image.png","png");
+pixbuf_save($pixbuf_s,"test_image.jpg","jpeg");
+pixbuf_save($pixbuf_s,"test_image.bmp","bmp");
 
 Header("Content-type: image/jpeg");
 
-pixbuf_dump($pixbuf_r);
+//pixbuf_dump_and_save($pixbuf_s,"test_image_dump.jpg","jpeg");
+
+//pixbuf_dump($pixbuf_r);
 
 
 

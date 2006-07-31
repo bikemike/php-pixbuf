@@ -18,6 +18,11 @@ zend_function_entry pixbuf_functions[] =
 {
 	PHP_FE(pixbuf_new_from_file_at_size, NULL)
 	PHP_FE(pixbuf_rotate_simple, NULL)
+	PHP_FE(pixbuf_scale_simple, NULL)
+	PHP_FE(pixbuf_get_width, NULL)
+	PHP_FE(pixbuf_get_height, NULL)
+	PHP_FE(pixbuf_save, NULL)
+	PHP_FE(pixbuf_dump_and_save, NULL)
 	PHP_FE(pixbuf_dump, NULL)
 	//PHP_FE(pixbuf_save_to_buffer, NULL)
 	{NULL, NULL, NULL}
@@ -52,10 +57,12 @@ static void php_pixbuf_init_globals(zend_pixbuf_globals *pixbuf_globals)
 }
 
 
+/*
 static void _g_object_unref(GdkPixbuf * pixbuf)
 {
 	g_object_unref(pixbuf);
 }
+*/
 
 PHP_MINIT_FUNCTION(pixbuf)
 {
@@ -65,7 +72,7 @@ PHP_MINIT_FUNCTION(pixbuf)
 	
 	g_type_init();
 
-	le_gdkpixbuf = register_list_destructors(_g_object_unref,NULL);
+	le_gdkpixbuf = register_list_destructors(g_object_unref,NULL);
 
 	return SUCCESS;
 }
@@ -154,13 +161,164 @@ PHP_FUNCTION(pixbuf_rotate_simple)
 	ZEND_REGISTER_RESOURCE(return_value,pixbuf_rotated,le_gdkpixbuf);
 
 }
+PHP_FUNCTION(pixbuf_scale_simple)
+{
+	zval *zpixbuf;
+	GdkPixbuf *pixbuf, *pixbuf_scaled;
+	long w, h, interp_type;
+	GdkInterpType i = GDK_INTERP_BILINEAR;
 
+	GError *error;
+	error = NULL;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rll|l", &zpixbuf, &w, &h, &interp_type) == FAILURE) 
+	{
+		RETURN_NULL();
+	}
+
+	ZEND_FETCH_RESOURCE(pixbuf, GdkPixbuf*, &zpixbuf, -1, PHP_PIXBUF_GDKPIXBUF_RES_NAME, le_gdkpixbuf);
+
+	switch (interp_type)
+	{
+		case 0:
+			i = GDK_INTERP_NEAREST;
+			break;
+		case 1:
+			i = GDK_INTERP_TILES;
+			break;
+		case 2:
+			i = GDK_INTERP_BILINEAR;
+			break;
+		case 3:
+			i = GDK_INTERP_HYPER;
+			break;
+		default:
+			i = GDK_INTERP_BILINEAR;
+	}
+
+	pixbuf_scaled = gdk_pixbuf_scale_simple(pixbuf, w, h, i);
+	
+	ZEND_REGISTER_RESOURCE(return_value,pixbuf_scaled,le_gdkpixbuf);
+
+}
+
+PHP_FUNCTION(pixbuf_get_width)
+{
+	zval *zpixbuf;
+	GdkPixbuf *pixbuf;
+
+	GError *error;
+	error = NULL;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "r", &zpixbuf ) == FAILURE) 
+	{
+		RETURN_NULL();
+	}
+
+	ZEND_FETCH_RESOURCE(pixbuf, GdkPixbuf*, &zpixbuf, -1, PHP_PIXBUF_GDKPIXBUF_RES_NAME, le_gdkpixbuf);
+	RETURN_LONG(gdk_pixbuf_get_width(pixbuf));
+}
+
+PHP_FUNCTION(pixbuf_get_height)
+{
+	zval *zpixbuf;
+	GdkPixbuf *pixbuf;
+
+	GError *error;
+	error = NULL;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "r", &zpixbuf ) == FAILURE) 
+	{
+		RETURN_NULL();
+	}
+
+	ZEND_FETCH_RESOURCE(pixbuf, GdkPixbuf*, &zpixbuf, -1, PHP_PIXBUF_GDKPIXBUF_RES_NAME, le_gdkpixbuf);
+	RETURN_LONG(gdk_pixbuf_get_height(pixbuf));
+}
+
+
+PHP_FUNCTION(pixbuf_save)
+{
+	zval *zpixbuf;
+	GdkPixbuf *pixbuf = NULL;
+	char *fname,*type;
+	int fname_size=0,type_size = 0;
+	GError *error;
+	error = NULL;
+	
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rs|s", &zpixbuf, &fname, &fname_size, &type, &type_size) == FAILURE) 
+	{
+		RETURN_NULL();
+	}
+
+	ZEND_FETCH_RESOURCE(pixbuf, GdkPixbuf*, &zpixbuf, -1, PHP_PIXBUF_GDKPIXBUF_RES_NAME, le_gdkpixbuf);
+
+	if (type_size == 0)
+	{
+		type = "jpeg";
+	}
+	if ( gdk_pixbuf_save(pixbuf, fname, type, &error,NULL) )
+	{
+		RETURN_TRUE;
+	}
+	RETURN_FALSE;
+}
+
+PHP_FUNCTION(pixbuf_dump_and_save)
+{
+	zval *zpixbuf;
+	GdkPixbuf *pixbuf = NULL;
+	char *fname,*type;
+	int fname_size=0,type_size = 0;
+	gchar *buffer = NULL;
+	gsize buffer_size,written_size;
+	GError *error;
+	error = NULL;
+	gboolean rval = FALSE;
+	
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rs|s", &zpixbuf, &fname, &fname_size, &type, &type_size) == FAILURE) 
+	{
+		RETURN_NULL();
+	}
+
+	ZEND_FETCH_RESOURCE(pixbuf, GdkPixbuf*, &zpixbuf, -1, PHP_PIXBUF_GDKPIXBUF_RES_NAME, le_gdkpixbuf);
+
+	if (type_size == 0)
+	{
+		type = "jpeg";
+	}
+
+	if ( gdk_pixbuf_save_to_buffer(pixbuf,&buffer, &buffer_size,type, &error,NULL) )
+	{
+		PHPWRITE(buffer,buffer_size);
+		
+		FILE *output = fopen(fname,"w");
+		if (NULL != output)
+		{
+			written_size = fwrite(buffer, sizeof(gchar), buffer_size, output);
+			if (written_size == buffer_size)
+			{
+				rval = TRUE;
+			}
+		}
+		
+		g_free(buffer);
+		
+		if (rval)
+		{
+			RETURN_TRUE;
+		}
+		else
+		{
+			RETURN_FALSE;
+		}
+	}
+	RETURN_FALSE;
+}
 PHP_FUNCTION(pixbuf_dump)
 {
 	zval *zpixbuf;
 	GdkPixbuf *pixbuf = NULL;
-	long rotation;
-	GdkPixbufRotation r = GDK_PIXBUF_ROTATE_NONE;
 	char *type;
 	int type_size = 0;
 	gchar *buffer = NULL;
@@ -173,13 +331,12 @@ PHP_FUNCTION(pixbuf_dump)
 		RETURN_NULL();
 	}
 
-  ZEND_FETCH_RESOURCE(pixbuf, GdkPixbuf*, &zpixbuf, -1, PHP_PIXBUF_GDKPIXBUF_RES_NAME, le_gdkpixbuf);
+	ZEND_FETCH_RESOURCE(pixbuf, GdkPixbuf*, &zpixbuf, -1, PHP_PIXBUF_GDKPIXBUF_RES_NAME, le_gdkpixbuf);
 
 	if (type_size == 0)
 	{
 		type = "jpeg";
 	}
-	int w = gdk_pixbuf_get_width(pixbuf);
 	if ( gdk_pixbuf_save_to_buffer(pixbuf,&buffer, &buffer_size,type, &error,NULL) )
 	{
 		PHPWRITE(buffer,buffer_size);
