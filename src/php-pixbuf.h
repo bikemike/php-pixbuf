@@ -14,9 +14,14 @@ PHP_RINIT_FUNCTION(pixbuf);
 PHP_RSHUTDOWN_FUNCTION(pixbuf);
 PHP_MINFO_FUNCTION(pixbuf);
 
+PHP_FUNCTION(pixbuf_new_from_file);
+PHP_FUNCTION(pixbuf_new_from_data);
 PHP_FUNCTION(pixbuf_new_from_file_at_size);
 PHP_FUNCTION(pixbuf_rotate_simple);
 PHP_FUNCTION(pixbuf_scale_simple);
+
+PHP_FUNCTION(pixbuf_composite);
+
 PHP_FUNCTION(pixbuf_get_width);
 PHP_FUNCTION(pixbuf_get_height);
 PHP_FUNCTION(pixbuf_save);

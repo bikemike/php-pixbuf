@@ -16,9 +16,12 @@ ZEND_DECLARE_MODULE_GLOBALS(pixbuf);
 /* compiled function list so Zend knows what's in this module */
 zend_function_entry pixbuf_functions[] =
 {
+	PHP_FE(pixbuf_new_from_data, NULL)
+	PHP_FE(pixbuf_new_from_file, NULL)
 	PHP_FE(pixbuf_new_from_file_at_size, NULL)
 	PHP_FE(pixbuf_rotate_simple, NULL)
 	PHP_FE(pixbuf_scale_simple, NULL)
+	PHP_FE(pixbuf_composite, NULL)
 	PHP_FE(pixbuf_get_width, NULL)
 	PHP_FE(pixbuf_get_height, NULL)
 	PHP_FE(pixbuf_save, NULL)
@@ -74,6 +77,16 @@ PHP_MINIT_FUNCTION(pixbuf)
 
 	le_gdkpixbuf = register_list_destructors(g_object_unref,NULL);
 
+    REGISTER_LONG_CONSTANT("GDK_INTERP_NEAREST", GDK_INTERP_NEAREST, CONST_CS | CONST_PERSISTENT);
+    REGISTER_LONG_CONSTANT("GDK_INTERP_TILES", GDK_INTERP_TILES, CONST_CS | CONST_PERSISTENT);
+    REGISTER_LONG_CONSTANT("GDK_INTERP_BILINEAR", GDK_INTERP_BILINEAR, CONST_CS | CONST_PERSISTENT);
+    REGISTER_LONG_CONSTANT("GDK_INTERP_HYPER", GDK_INTERP_HYPER, CONST_CS | CONST_PERSISTENT);
+
+    REGISTER_LONG_CONSTANT("GDK_PIXBUF_ROTATE_NONE", GDK_PIXBUF_ROTATE_NONE, CONST_CS | CONST_PERSISTENT);
+    REGISTER_LONG_CONSTANT("GDK_PIXBUF_ROTATE_COUNTERCLOCKWISE", GDK_PIXBUF_ROTATE_COUNTERCLOCKWISE, CONST_CS | CONST_PERSISTENT);
+    REGISTER_LONG_CONSTANT("GDK_PIXBUF_ROTATE_UPSIDEDOWN", GDK_PIXBUF_ROTATE_UPSIDEDOWN, CONST_CS | CONST_PERSISTENT);
+    REGISTER_LONG_CONSTANT("GDK_PIXBUF_ROTATE_CLOCKWISE", GDK_PIXBUF_ROTATE_CLOCKWISE, CONST_CS | CONST_PERSISTENT);
+
 	return SUCCESS;
 }
 
@@ -97,6 +110,65 @@ PHP_MINFO_FUNCTION(pixbuf)
 }
 
 /* implement function that is meant to be made available to PHP */
+PHP_FUNCTION(pixbuf_new_from_data)
+{
+	char *filedata;
+	int filedata_length;
+
+	GError *error;
+	error = NULL;
+	GdkPixbufLoader *loader;
+	GdkPixbuf *pixbuf;
+
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &filedata, &filedata_length) == FAILURE) 
+	{
+		RETURN_NULL();
+	}
+	loader = gdk_pixbuf_loader_new();
+	gdk_pixbuf_loader_write(loader,(guchar*)filedata,filedata_length,&error);
+	gdk_pixbuf_loader_close(loader,&error);
+
+	pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
+	g_object_ref(pixbuf);
+	g_object_unref(loader);
+
+	if (NULL == pixbuf)
+	{
+		RETURN_FALSE;
+	}
+	else
+	{
+		ZEND_REGISTER_RESOURCE(return_value,pixbuf,le_gdkpixbuf);
+	}
+}
+
+PHP_FUNCTION(pixbuf_new_from_file)
+{
+	char *filename;
+	int filename_length;
+
+	GError *error;
+	error = NULL;
+	GdkPixbuf * pixbuf;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &filename, &filename_length) == FAILURE) 
+	{
+		RETURN_NULL();
+	}
+
+	pixbuf = gdk_pixbuf_new_from_file(filename,&error);
+
+	if (NULL == pixbuf)
+	{
+		RETURN_FALSE;
+	}
+	else
+	{
+		ZEND_REGISTER_RESOURCE(return_value,pixbuf,le_gdkpixbuf);
+	}
+}
+
 PHP_FUNCTION(pixbuf_new_from_file_at_size)
 {
 	char *filename;
@@ -143,17 +215,13 @@ PHP_FUNCTION(pixbuf_rotate_simple)
 
 	switch (rotation)
 	{
-		case 90:
-			r = GDK_PIXBUF_ROTATE_CLOCKWISE;
-			break;
-		case 180:
-			r = GDK_PIXBUF_ROTATE_UPSIDEDOWN;
-			break;
-		case 270:
-			r = GDK_PIXBUF_ROTATE_COUNTERCLOCKWISE;
+		case GDK_PIXBUF_ROTATE_CLOCKWISE:
+		case GDK_PIXBUF_ROTATE_UPSIDEDOWN:
+		case GDK_PIXBUF_ROTATE_COUNTERCLOCKWISE:
+			r = rotation;
 			break;
 		default:
-			RETURN_FALSE;
+			r = GDK_PIXBUF_ROTATE_NONE;
 	}
 
 	pixbuf_rotated = gdk_pixbuf_rotate_simple(pixbuf,r);
@@ -171,6 +239,7 @@ PHP_FUNCTION(pixbuf_scale_simple)
 	GError *error;
 	error = NULL;
 
+	interp_type = i;
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rll|l", &zpixbuf, &w, &h, &interp_type) == FAILURE) 
 	{
 		RETURN_NULL();
@@ -180,17 +249,11 @@ PHP_FUNCTION(pixbuf_scale_simple)
 
 	switch (interp_type)
 	{
-		case 0:
-			i = GDK_INTERP_NEAREST;
-			break;
-		case 1:
-			i = GDK_INTERP_TILES;
-			break;
-		case 2:
-			i = GDK_INTERP_BILINEAR;
-			break;
-		case 3:
-			i = GDK_INTERP_HYPER;
+		case GDK_INTERP_NEAREST:
+		case GDK_INTERP_TILES:
+		case GDK_INTERP_BILINEAR:
+		case GDK_INTERP_HYPER:
+			i = interp_type;
 			break;
 		default:
 			i = GDK_INTERP_BILINEAR;
@@ -200,6 +263,56 @@ PHP_FUNCTION(pixbuf_scale_simple)
 	
 	ZEND_REGISTER_RESOURCE(return_value,pixbuf_scaled,le_gdkpixbuf);
 
+}
+
+PHP_FUNCTION(pixbuf_composite)
+{
+	zval *zpixbuf_src;
+	zval *zpixbuf_dst;
+	GdkPixbuf *pixbuf_src, *pixbuf_dst;
+	long dest_x = 0, dest_y = 0, dest_width = 0, dest_height =0, overall_alpha = 0, interp_type = GDK_INTERP_BILINEAR;
+	double offset_x = 0., offset_y = 0., scale_x = 1., scale_y = 1.;
+
+	GError *error;
+	error = NULL;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rrllllddddll", 
+		&zpixbuf_src, &zpixbuf_dst, 
+		&dest_x, &dest_y, &dest_width, &dest_height,
+		&offset_x, &offset_y, &scale_x, &scale_y,
+		&interp_type, &overall_alpha) == FAILURE) 
+	{
+		RETURN_NULL();
+	}
+
+	ZEND_FETCH_RESOURCE(pixbuf_src, GdkPixbuf*, &zpixbuf_src, -1, PHP_PIXBUF_GDKPIXBUF_RES_NAME, le_gdkpixbuf);
+	ZEND_FETCH_RESOURCE(pixbuf_dst, GdkPixbuf*, &zpixbuf_dst, -1, PHP_PIXBUF_GDKPIXBUF_RES_NAME, le_gdkpixbuf);
+
+	switch (interp_type)
+	{
+		case GDK_INTERP_NEAREST:
+		case GDK_INTERP_TILES:
+		case GDK_INTERP_BILINEAR:
+		case GDK_INTERP_HYPER:
+			break;
+		default:
+			interp_type = GDK_INTERP_BILINEAR;
+	}
+
+	gdk_pixbuf_composite (pixbuf_src,
+		pixbuf_dst,
+		dest_x,
+		dest_y,
+		dest_width,
+		dest_height,
+		offset_x,
+		offset_y,
+		scale_x,
+		scale_y,
+		interp_type,
+		overall_alpha);
+
+	RETURN_TRUE;
 }
 
 PHP_FUNCTION(pixbuf_get_width)
@@ -300,6 +413,7 @@ PHP_FUNCTION(pixbuf_dump_and_save)
 			{
 				rval = TRUE;
 			}
+			fclose(output);
 		}
 		
 		g_free(buffer);
