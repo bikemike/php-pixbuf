@@ -1,3 +1,6 @@
+/* Copyright (c) 2014 Michael Morrison */
+/* See LICENSE.txt for details.        */
+
 #ifndef PHP_PIXBUF_H
 #define PHP_PIXBUF_H
 

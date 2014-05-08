@@ -1,3 +1,6 @@
+/* Copyright (c) 2014 Michael Morrison */
+/* See LICENSE.txt for details.        */
+
 /* include standard header */
 #include <php.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
