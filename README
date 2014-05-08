@@ -1,0 +1,4 @@
+php-pixbuf
+==========
+
+A php module that provides access to gdk-pixbuf image loading and compositing routines.
